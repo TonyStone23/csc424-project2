@@ -128,16 +128,20 @@
         state: absent
         remove: true
 
-    # Remove the passwordless-sudo (NOPASSWD) rule.
-    - name: Remove passwordless-sudo rule from cloud-init users
-      ansible.builtin.file:
+    # Keep the sudo rules but require authentication.
+    - name: Require a password for cloud-init sudo rule
+      ansible.builtin.replace:
         path: /etc/sudoers.d/90-cloud-init-Users
-        state: absent
+        regexp: 'NOPASSWD:ALL'
+        replace: 'ALL'
+        validate: 'visudo -cf %s'
 
-    - name: Remove passwordless-sudo rule from course file
-      ansible.builtin.file:
+    - name: Require a password for course sudo rule
+      ansible.builtin.replace:
         path: /etc/sudoers.d/90-course-nopasswd
-        state: absent
+        regexp: 'NOPASSWD:ALL'
+        replace: 'ALL'
+        validate: 'visudo -cf %s'
 
     # Remove the unexpected SUID-root binary.
     - name: Remove SUID bit from flushcache
@@ -185,8 +189,8 @@
         append_privs: false
         login_unix_socket: /var/run/mysqld/mysqld.sock
 
-    # Tighten DB access hosts; drop anonymous/stale accounts.
-    - name: Drop remote root access
+    # Remove the remote root account; equivalent to DROP USER 'root'@'%'.
+    - name: Drop root account with wildcard host
       community.mysql.mysql_user:
         name: root
         host: '%'
