@@ -132,14 +132,14 @@
     - name: Require a password for cloud-init sudo rule
       ansible.builtin.replace:
         path: /etc/sudoers.d/90-cloud-init-users
-        regexp: 'ubuntu ALL=(ALL) NOPASSWD:ALL'
+        regexp: 'ubuntu ALL=\(ALL\) NOPASSWD:\s*ALL'
         replace: 'ubuntu ALL=(ALL) ALL'
         validate: 'visudo -cf %s'
 
     - name: Require a password for course sudo rule
       ansible.builtin.replace:
         path: /etc/sudoers.d/90-course-nopasswd
-        regexp: 'ubuntu ALL=(ALL) NOPASSWD:ALL'
+        regexp: 'ubuntu ALL=\(ALL\) NOPASSWD:\s*ALL'
         replace: 'ubuntu ALL=(ALL) ALL'
         validate: 'visudo -cf %s'
 
