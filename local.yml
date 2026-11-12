@@ -132,15 +132,15 @@
     - name: Require a password for cloud-init sudo rule
       ansible.builtin.replace:
         path: /etc/sudoers.d/90-cloud-init-users
-        regexp: 'NOPASSWD:ALL'
-        replace: 'ALL'
+        regexp: 'ubuntu ALL=(ALL) NOPASSWD:ALL'
+        replace: 'ubuntu ALL=(ALL) ALL'
         validate: 'visudo -cf %s'
 
     - name: Require a password for course sudo rule
       ansible.builtin.replace:
         path: /etc/sudoers.d/90-course-nopasswd
-        regexp: 'NOPASSWD:ALL'
-        replace: 'ALL'
+        regexp: 'ubuntu ALL=(ALL) NOPASSWD:ALL'
+        replace: 'ubuntu ALL=(ALL)ALL'
         validate: 'visudo -cf %s'
 
     # Remove the unexpected SUID-root binary.
@@ -193,7 +193,7 @@
     - name: Drop root account with wildcard host
       community.mysql.mysql_user:
         name: root
-        host: '%'
+        host: '*'
         state: absent
         login_unix_socket: /var/run/mysqld/mysqld.sock
 
