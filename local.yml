@@ -29,30 +29,23 @@
 
     # ======================= Domain A — System / SSH =====================
     # SSH — disallow root login and password auth, then restart ssh.
-    - name: Ensure ssh config directory exists
-      ansible.builtin.file:
-        path: /etc/ssh/sshd_config.d
-        state: directory
-        mode: '0755'
-
     - name: Disallow root login
       ansible.builtin.lineinfile:
-        path: /etc/ssh/sshd_config.d/99-course.config
+        path: /etc/ssh/sshd_config
         create: true
-        regexp: '^PermitRootLogin'
+        regexp: '^\s*PermitRootLogin\b'
+        insertafter: BOF
         line: 'PermitRootLogin no'
+      notify: Restart ssh
 
     - name: Disallow root password authentication
       ansible.builtin.lineinfile:
-        path: /etc/ssh/sshd_config.d/99-course.config
+        path: /etc/ssh/sshd_config
         create: true
-        regexp: '^PasswordAuthentication'
+        regexp: '^\s*PasswordAuthentication\b'
+        insertafter: BOF
         line: 'PasswordAuthentication no'
-
-    - name: Restart ssh service
-      ansible.builtin.service:
-        name: ssh
-        state: restarted
+      notify: Restart ssh
 
     # Host firewall (UFW) — active, default-deny incoming, allow only SSH.
     - name: Ensure UFW is installed
@@ -72,7 +65,7 @@
 
     - name: Allow OpenSSH through firewall
       community.general.ufw:
-        rule: limit
+        rule: allow
         port: '22'
         proto: tcp
 
@@ -144,6 +137,27 @@
         path: /etc/sudoers.d/90-course-nopasswd
         state: absent
 
+    - name: Find remaining passwordless-sudo rules
+      ansible.builtin.find:
+        paths: /etc/sudoers.d
+        file_type: file
+        contains: 'NOPASSWD'
+      register: sudoers_nopasswd_files
+
+    - name: Remove remaining passwordless-sudo rules
+      ansible.builtin.lineinfile:
+        path: "{{ item.path }}"
+        regexp: '.*NOPASSWD.*'
+        state: absent
+      loop: "{{ sudoers_nopasswd_files.files }}"
+
+    - name: Remove passwordless-sudo rules from main sudoers file
+      ansible.builtin.lineinfile:
+        path: /etc/sudoers
+        regexp: '.*NOPASSWD.*'
+        state: absent
+        validate: 'visudo -cf %s'
+
     # Remove the unexpected SUID-root binary.
     - name: Remove SUID bit from flushcache
       ansible.builtin.file:
@@ -169,7 +183,15 @@
     #     ansible-galaxy collection install community.mysql
     #     sudo apt-get install -y python3-pymysql
 
-    # Scope the webapp account to only what it needs.
+    # Clear broader grants before applying each account's required scope.
+    - name: Remove global privileges from webapp account
+      community.mysql.mysql_user:
+        name: webapp
+        host: '%'
+        priv: '*.*:USAGE'
+        append_privs: false
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
     - name: Scope webapp account
       community.mysql.mysql_user:
         name: webapp
@@ -178,7 +200,14 @@
         append_privs: false
         login_unix_socket: /var/run/mysqld/mysqld.sock
 
-    # Scope the reporting account to read-only on its DB.
+    - name: Remove global privileges from reporting account
+      community.mysql.mysql_user:
+        name: reporting
+        host: '%'
+        priv: '*.*:USAGE'
+        append_privs: false
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
     - name: Scope reporting account
       community.mysql.mysql_user:
         name: reporting
@@ -195,9 +224,22 @@
         state: absent
         login_unix_socket: /var/run/mysqld/mysqld.sock
 
+    - name: Drop wildcard-host root access
+      community.mysql.mysql_user:
+        name: root
+        host: '_'
+        state: absent
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
     - name: Drop anonymous MySQL user
       community.mysql.mysql_user:
         name: ''
         host: '%'
         state: absent
         login_unix_socket: /var/run/mysqld/mysqld.sock
+
+  handlers:
+    - name: Restart ssh
+      ansible.builtin.service:
+        name: ssh
+        state: restarted
