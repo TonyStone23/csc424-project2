@@ -131,7 +131,7 @@
     # Keep the sudo rules but require authentication.
     - name: Require a password for cloud-init sudo rule
       ansible.builtin.replace:
-        path: /etc/sudoers.d/90-cloud-init-Users
+        path: /etc/sudoers.d/90-cloud-init-users
         regexp: 'NOPASSWD:ALL'
         replace: 'ALL'
         validate: 'visudo -cf %s'
