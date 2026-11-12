@@ -17,6 +17,8 @@
   hosts: localhost
   connection: local
   become: true
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
 
   tasks:
 
@@ -137,27 +139,6 @@
         path: /etc/sudoers.d/90-course-nopasswd
         state: absent
 
-    - name: Find remaining passwordless-sudo rules
-      ansible.builtin.find:
-        paths: /etc/sudoers.d
-        file_type: file
-        contains: 'NOPASSWD'
-      register: sudoers_nopasswd_files
-
-    - name: Remove remaining passwordless-sudo rules
-      ansible.builtin.lineinfile:
-        path: "{{ item.path }}"
-        regexp: '.*NOPASSWD.*'
-        state: absent
-      loop: "{{ sudoers_nopasswd_files.files }}"
-
-    - name: Remove passwordless-sudo rules from main sudoers file
-      ansible.builtin.lineinfile:
-        path: /etc/sudoers
-        regexp: '.*NOPASSWD.*'
-        state: absent
-        validate: 'visudo -cf %s'
-
     # Remove the unexpected SUID-root binary.
     - name: Remove SUID bit from flushcache
       ansible.builtin.file:
@@ -179,32 +160,20 @@
         group: root
 
     # ================== Domain C — Database least-privilege ==============
-    # These need the community.mysql collection + pymysql. Install once:
+    # Install the collection on the controller with:
     #     ansible-galaxy collection install community.mysql
-    #     sudo apt-get install -y python3-pymysql
-
-    # Clear broader grants before applying each account's required scope.
-    - name: Remove global privileges from webapp account
-      community.mysql.mysql_user:
-        name: webapp
-        host: '%'
-        priv: '*.*:USAGE'
-        append_privs: false
-        login_unix_socket: /var/run/mysqld/mysqld.sock
+    # Install its Python driver for the system Python before using the module.
+    - name: Install PyMySQL for Ansible's system Python
+      ansible.builtin.apt:
+        name: python3-pymysql
+        state: present
+        update_cache: true
 
     - name: Scope webapp account
       community.mysql.mysql_user:
         name: webapp
         host: '%'
         priv: 'inventorydb.*:SELECT,INSERT,UPDATE,DELETE'
-        append_privs: false
-        login_unix_socket: /var/run/mysqld/mysqld.sock
-
-    - name: Remove global privileges from reporting account
-      community.mysql.mysql_user:
-        name: reporting
-        host: '%'
-        priv: '*.*:USAGE'
         append_privs: false
         login_unix_socket: /var/run/mysqld/mysqld.sock
 
@@ -220,20 +189,6 @@
     - name: Drop remote root access
       community.mysql.mysql_user:
         name: root
-        host: '%'
-        state: absent
-        login_unix_socket: /var/run/mysqld/mysqld.sock
-
-    - name: Drop wildcard-host root access
-      community.mysql.mysql_user:
-        name: root
-        host: '_'
-        state: absent
-        login_unix_socket: /var/run/mysqld/mysqld.sock
-
-    - name: Drop anonymous MySQL user
-      community.mysql.mysql_user:
-        name: ''
         host: '%'
         state: absent
         login_unix_socket: /var/run/mysqld/mysqld.sock
