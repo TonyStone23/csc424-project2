@@ -134,16 +134,50 @@
 
     # TODO: Fix the account that has a blank password
     #   (module: ansible.builtin.user  — set/lock the password)
+
+  - name: Fix blank password
+      anisble.builtin.user:
+        name: guestsvc
+        password_lock: true
+
     #
     # TODO: Restrict the world-readable credentials file
     #   (module: ansible.builtin.file  mode: "0600"  + owner)
+  
+  - name: Restrict world-readable credentials
+      ansible.builtin.file:
+        name: opt/app/config.yml
+        mode: '0600'
 
     # ================== Domain C — Database least-privilege ==============
     # These need the community.mysql collection + pymysql. Install once:
     #     ansible-galaxy collection install community.mysql
     #     sudo apt-get install -y python3-pymysql
-    #
+
     # TODO: Scope the webapp account to only what it needs (see the inventory)
+  - name: Scope webapp account
+      community.mysql.mysql_user:
+        name: webapp
+        host: "%"
+        priv: "inventorydb.*:SELECT,INSERT,UPDATE,DELETE"
+        append_privs: false
+        login_unic_socket: /var/run/mysqld/mysqld.sock
+
     # TODO: Scope the reporting account to read-only on its DB
+  - name: Scope reporting account
+      community.mysql.mysql_user:
+        name: webapp
+        host: "%"
+        priv: "inventorydb.*:SELECT"
+        append_privs: false
+        login_unic_socket: /var/run/mysqld/mysqld.sock
+
     # TODO: Tighten DB access hosts; drop anonymous/stale accounts
+  - name: Scope root account
+      community.mysql.mysql_user:
+        name: root
+        host: "%"
+        state: absent
+        login_unic_socket: /var/run/mysqld/mysqld.sock
+
     #   (module: community.mysql.mysql_user  — priv:, host:, login_unix_socket:)
